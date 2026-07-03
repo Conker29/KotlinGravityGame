@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
@@ -28,6 +29,7 @@ class GameView(context: Context, attrs: AttributeSet? = null) : View(context, at
     private val handler = Handler(Looper.getMainLooper())
     private val frameDelay = 16L
 
+    // ---- HUD ----
     private val hudBackgroundPaint = Paint().apply { color = Color.WHITE }
     private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.BLACK; textSize = 60f; isFakeBoldText = true
@@ -38,12 +40,47 @@ class GameView(context: Context, attrs: AttributeSet? = null) : View(context, at
     private val coordPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.GRAY; textSize = 36f
     }
-    private val overlayPaint = Paint().apply { color = Color.argb(245, 255, 255, 255) }
-    private val startTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK; textSize = 70f; isFakeBoldText = true
+
+    // ---- Pantalla de inicio / fin ----
+    private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(245, 255, 255, 255)
     }
-    private val startBodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.DKGRAY; textSize = 38f
+    private val welcomePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(147, 51, 234) // morado, a juego con la bola
+        textSize = 44f
+        isFakeBoldText = true
+    }
+    private val bigTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        textSize = 80f
+        isFakeBoldText = true
+    }
+    private val gameOverTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        textSize = 60f
+        isFakeBoldText = true
+    }
+    private val taglinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(100, 100, 100)
+        textSize = 34f
+    }
+    private val sectionLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(147, 51, 234)
+        textSize = 36f
+        isFakeBoldText = true
+    }
+    private val instructionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.DKGRAY
+        textSize = 36f
+    }
+    private val ctaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 42f
+        isFakeBoldText = true
+        textAlign = Paint.Align.CENTER
+    }
+    private val ctaBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(147, 51, 234)
     }
 
     private val gameLoop = object : Runnable {
@@ -121,11 +158,23 @@ class GameView(context: Context, attrs: AttributeSet? = null) : View(context, at
 
     private fun spawnObstacles(w: Int, h: Int) {
         obstacles.clear()
-        repeat(6) {
+        val newObstacles = mutableListOf<Obstacle>()
+        var attempts = 0
+
+        while (newObstacles.size < 6 && attempts < 100) {
+            attempts++
             val x = Random.nextInt(0, (w - 160).coerceAtLeast(1)).toFloat()
             val y = Random.nextInt(200, (h - 200).coerceAtLeast(201)).toFloat()
-            obstacles.add(Obstacle(x, y))
+            val candidate = Obstacle(x, y)
+
+            val overlaps = newObstacles.any { existing ->
+                RectF.intersects(candidate.rect(), existing.rect())
+            }
+
+            if (!overlaps) newObstacles.add(candidate)
         }
+
+        obstacles.addAll(newObstacles)
     }
 
     private fun spawnTargets(w: Int, h: Int) {
@@ -164,6 +213,7 @@ class GameView(context: Context, attrs: AttributeSet? = null) : View(context, at
         targets.forEach { it.draw(canvas) }
         ball.draw(canvas)
 
+        // HUD
         canvas.drawRect(0f, 0f, width.toFloat(), 160f, hudBackgroundPaint)
         canvas.drawText("Gravity Ball Kotlin", 30f, 60f, titlePaint)
         canvas.drawText("Puntaje: $score   Vidas: $lives", 30f, 120f, subtitlePaint)
@@ -178,17 +228,40 @@ class GameView(context: Context, attrs: AttributeSet? = null) : View(context, at
     private fun drawOverlay(canvas: Canvas) {
         val centerX = width / 2f
         val centerY = height / 2f
+        val cardLeft = 50f
+        val cardRight = width - 50f
+        val cardTop = centerY - 340f
+        val cardBottom = centerY + 340f
 
-        canvas.drawRect(60f, centerY - 260f, width - 60f, centerY + 260f, overlayPaint)
+        // Tarjeta de fondo
+        canvas.drawRoundRect(cardLeft, cardTop, cardRight, cardBottom, 40f, 40f, overlayPaint)
 
         if (gameOver) {
-            canvas.drawText("¡Juego terminado!", centerX - 260f, centerY - 150f, startTitlePaint)
-            canvas.drawText("Puntaje final: $score", centerX - 200f, centerY - 60f, startBodyPaint)
-            canvas.drawText("Toca para volver a jugar", centerX - 230f, centerY + 20f, startBodyPaint)
+            canvas.drawText("¡Juego terminado!", cardLeft + 40f, cardTop + 120f, gameOverTitlePaint)
+            canvas.drawText("Puntaje final: $score", cardLeft + 40f, cardTop + 210f, taglinePaint)
+            canvas.drawText("Perdiste tus 3 vidas. ¡Sigue intentando! 💪", cardLeft + 40f, cardTop + 270f, instructionPaint)
+
+            val btnTop = cardBottom - 140f
+            canvas.drawRoundRect(centerX - 240f, btnTop, centerX + 240f, btnTop + 90f, 30f, 30f, ctaBackgroundPaint)
+            canvas.drawText("Toca para volver a jugar", centerX, btnTop + 58f, ctaPaint)
         } else {
-            canvas.drawText("Toca para iniciar", centerX - 220f, centerY - 150f, startTitlePaint)
-            canvas.drawText("Inclina el celular para mover la bolita.", centerX - 260f, centerY - 60f, startBodyPaint)
-            canvas.drawText("Atrapa objetivos verdes y evita obstáculos rojos.", centerX - 300f, centerY, startBodyPaint)
+            // Saludo personal
+            canvas.drawText("¡Bienvenido! 👋", cardLeft + 40f, cardTop + 90f, welcomePaint)
+
+            // Título grande del juego
+            canvas.drawText("Gravity Ball", cardLeft + 40f, cardTop + 175f, bigTitlePaint)
+            canvas.drawText("Kotlin Edition", cardLeft + 40f, cardTop + 220f, taglinePaint)
+
+            // Sección: cómo jugar
+            canvas.drawText("🎮  Cómo jugar", cardLeft + 40f, cardTop + 300f, sectionLabelPaint)
+            canvas.drawText("• Inclina el celular para mover la bolita.", cardLeft + 40f, cardTop + 350f, instructionPaint)
+            canvas.drawText("• Atrapa los objetivos verdes 🟢 para sumar puntos.", cardLeft + 40f, cardTop + 395f, instructionPaint)
+            canvas.drawText("• Evita los obstáculos rojos 🔴 y los bordes.", cardLeft + 40f, cardTop + 440f, instructionPaint)
+            canvas.drawText("• Tienes 3 vidas. ¡No las pierdas todas!", cardLeft + 40f, cardTop + 485f, instructionPaint)
+
+            val btnTop = cardBottom - 120f
+            canvas.drawRoundRect(centerX - 220f, btnTop, centerX + 220f, btnTop + 90f, 30f, 30f, ctaBackgroundPaint)
+            canvas.drawText("¡Toca para empezar!", centerX, btnTop + 58f, ctaPaint)
         }
     }
 }
